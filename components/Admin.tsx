@@ -6,6 +6,7 @@ type UploadTarget = { path: string; token: string; contentType: string };
 
 export default function Admin({ email }: { email: string }) {
   const [d, setD] = useState(new Date().toISOString().slice(0, 10));
+  const [challengeNumber, setChallengeNumber] = useState(1);
   const [title, setTitle] = useState("Who is it?");
   const [a, setA] = useState({ name: "", age: "", occupation: "", from: "" });
   const [video, setVideo] = useState<File | null>(null);
@@ -29,6 +30,7 @@ export default function Admin({ email }: { email: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: d,
+          challengeNumber,
           videoName: video.name,
           videoSize: video.size,
           videoType: video.type || "video/mp4",
@@ -66,6 +68,7 @@ export default function Admin({ email }: { email: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: d,
+          challengeNumber,
           title,
           name: a.name,
           age: a.age,
@@ -98,10 +101,11 @@ export default function Admin({ email }: { email: string }) {
       <span className="muted small"> {email}</span>
       <button className="btn secondary" style={{ float: "right" }} onClick={logout} disabled={busy}>Sign out</button>
       <h1>Daily challenge</h1>
-      <div className="notice">Correct answers are stored server-side and are not sent to players before submission.</div>
+      <div className="notice">Publish each slot from 1–4 for the same date. Players complete all four challenges for a maximum of 16 points.</div>
 
       <div className="questions">
         <div className="field"><label>Date</label><input type="date" value={d} onChange={(e) => setD(e.target.value)} disabled={busy} /></div>
+        <div className="field"><label>Challenge number (1–4)</label><select value={challengeNumber} onChange={(e) => setChallengeNumber(Number(e.target.value))} disabled={busy}><option value={1}>Challenge 1</option><option value={2}>Challenge 2</option><option value={3}>Challenge 3</option><option value={4}>Challenge 4</option></select></div>
         <div className="field"><label>Title</label><input value={title} onChange={(e) => setTitle(e.target.value)} disabled={busy} /></div>
         {[['name', 'Name'], ['age', 'Age'], ['occupation', 'Occupation'], ['from', "Where they're from"]].map(([k, l]) => (
           <div className="field" key={k}>

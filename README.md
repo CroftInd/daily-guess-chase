@@ -37,3 +37,9 @@ The admin uploader uses a two-step flow: the server creates short-lived signed u
 
 ## Admin security
 Set `ADMIN_EMAILS` to the email address(es) allowed to administer the site. Publishing uses signed Supabase Storage upload URLs: the browser uploads the video directly to Storage, so large videos do not pass through the Vercel/Next.js function. The Supabase service-role key remains server-only and is never exposed to the browser.
+
+## Four challenges per day
+Each date now supports Challenge 1, 2, 3 and 4. Players enter their leaderboard name separately from the four guesses on each challenge. The daily maximum is 16 points.
+
+### Existing database
+If you already deployed an earlier Daily Guess version, run `supabase/migration-4-challenges.sql` once in the Supabase SQL Editor before deploying this version. Existing challenges become Challenge 1 for their date.

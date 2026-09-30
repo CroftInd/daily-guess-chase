@@ -34,6 +34,7 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const date = String(body.date || "");
+    const challengeNumber = Number(body.challengeNumber || 1);
     const title = String(body.title || "Who is it?").trim();
     const name = String(body.name || "").trim();
     const age = String(body.age || "").trim();
@@ -42,13 +43,14 @@ export async function POST(req: Request) {
     const videoPath = String(body.videoPath || "").trim();
     const posterPath = body.posterPath ? String(body.posterPath).trim() : null;
 
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !name || !age || !occupation || !from || !videoPath) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || ![1,2,3,4].includes(challengeNumber) || !name || !age || !occupation || !from || !videoPath) {
       return NextResponse.json({ error: "Missing required challenge data." }, { status: 400 });
     }
 
     const db = adminClient();
     const { error } = await db.from("challenges").upsert({
       challenge_date: date,
+      challenge_number: challengeNumber,
       title,
       video_path: videoPath,
       poster_path: posterPath,
@@ -58,7 +60,7 @@ export async function POST(req: Request) {
       from_answer: from,
       is_published: true,
       created_by: auth.user.id,
-    }, { onConflict: "challenge_date" });
+    }, { onConflict: "challenge_date,challenge_number" });
 
     if (error) throw error;
     return NextResponse.json({ ok: true });
@@ -75,6 +77,7 @@ export async function PUT(req: Request) {
 
     const body = await req.json();
     const date = String(body.date || "");
+    const challengeNumber = Number(body.challengeNumber || 1);
     const videoName = String(body.videoName || "video.mp4");
     const videoSize = Number(body.videoSize || 0);
     const videoType = String(body.videoType || "video/mp4");
@@ -82,7 +85,7 @@ export async function PUT(req: Request) {
     const posterSize = Number(body.posterSize || 0);
     const posterType = String(body.posterType || "image/jpeg");
 
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !videoSize) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || ![1,2,3,4].includes(challengeNumber) || !videoSize) {
       return NextResponse.json({ error: "A video is required." }, { status: 400 });
     }
     if (videoSize > MAX_VIDEO) {
@@ -93,7 +96,7 @@ export async function PUT(req: Request) {
     }
 
     const db = adminClient();
-    const videoPath = `${date}/${crypto.randomUUID()}-${safeFilename(videoName)}`;
+    const videoPath = `${date}/challenge-${challengeNumber}/${crypto.randomUUID()}-${safeFilename(videoName)}`;
     const { data: videoUpload, error: videoError } = await db.storage
       .from("challenge-media")
       .createSignedUploadUrl(videoPath);
@@ -101,7 +104,7 @@ export async function PUT(req: Request) {
 
     let posterUpload: { path: string; token: string } | null = null;
     if (posterSize > 0 && posterName) {
-      const posterPath = `${date}/${crypto.randomUUID()}-${safeFilename(posterName)}`;
+      const posterPath = `${date}/challenge-${challengeNumber}/${crypto.randomUUID()}-${safeFilename(posterName)}`;
       const { data, error } = await db.storage
         .from("challenge-media")
         .createSignedUploadUrl(posterPath);
