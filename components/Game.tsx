@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Countdown from "./Countdown";
 
 type Challenge = { id:string; slot:number; title:string; videoUrl:string; posterUrl:string|null };
 type Result = { score:number; breakdown:any[] };
+type SavedDay = { playerName:string; current:number; results:Result[]; done:boolean; form:{name:string;age:string;occupation:string;from:string} };
 
 export default function Game({ date, challenges }: { date:string; challenges:Challenge[] }) {
   const [playerName,setPlayerName]=useState("");
@@ -13,10 +15,33 @@ export default function Game({ date, challenges }: { date:string; challenges:Cha
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [form,setForm]=useState({name:"",age:"",occupation:"",from:""});
+  const [loaded,setLoaded]=useState(false);
   const v=useRef<HTMLVideoElement>(null);
+  const storageKey=`daily-guess:${date}`;
   const challenge=challenges[current];
 
-  useEffect(()=>{setUnlocked(false); const x=v.current; if(!x)return; x.pause(); x.currentTime=0;},[current]);
+  useEffect(()=>{
+    try {
+      const raw=localStorage.getItem(storageKey);
+      if(raw){
+        const saved=JSON.parse(raw) as SavedDay;
+        setPlayerName(saved.playerName||"");
+        setCurrent(Math.min(saved.current||0, Math.max(challenges.length-1,0)));
+        setResults(Array.isArray(saved.results)?saved.results:[]);
+        setDone(Boolean(saved.done));
+        if(saved.form) setForm(saved.form);
+      }
+    } catch {}
+    setLoaded(true);
+  },[date,storageKey,challenges.length]);
+
+  useEffect(()=>{
+    if(!loaded) return;
+    const saved:SavedDay={playerName,current,results,done,form};
+    try { localStorage.setItem(storageKey,JSON.stringify(saved)); } catch {}
+  },[loaded,storageKey,playerName,current,results,done,form]);
+
+  useEffect(()=>{setUnlocked(Boolean(results[current])); const x=v.current; if(!x)return; x.pause(); x.currentTime=0;},[current,results]);
   useEffect(()=>{const x=v.current;if(!x)return;const f=()=>{if(!unlocked){x.pause();x.currentTime=0}};x.addEventListener("play",f);return()=>x.removeEventListener("play",f)},[unlocked]);
 
   const u=(k:string,val:string)=>setForm({...form,[k]:val});
@@ -33,8 +58,13 @@ export default function Game({ date, challenges }: { date:string; challenges:Cha
     }catch(e:any){setError(e.message||"Submission failed")}finally{setBusy(false)}
   }
 
-  if(!challenge)return <section className="card"><h2>No challenges published yet.</h2></section>;
   const total=results.reduce((n,r)=>n+r.score,0);
+
+  if(!loaded)return <section className="card"><p className="muted">Loading today’s challenge…</p></section>;
+
+  if(done) return <DailyStats date={date} playerName={playerName} results={results} total={total}/>;
+  if(!challenge)return <section className="card"><h2>No challenges published yet.</h2></section>;
+
   return <>
     <section className="hero"><div className="eyebrow">{date} · Challenge {current+1} of {challenges.length}</div><h1>Daily Guess</h1><p>Make four guesses before each video reveals the answer.</p></section>
     <section className="card">
@@ -48,6 +78,20 @@ export default function Game({ date, challenges }: { date:string; challenges:Cha
       </form>
     </section>
     {results[current]&&<section className="card"><div className="score">{results[current].score} / 4</div><div className="scoreline">Challenge {current+1} score</div>{results[current].breakdown.map((x:any)=><div className="answer" key={x.key}><b>{x.label}</b> <span className={x.correct?"ok":"no"}>{x.correct?"✓ Correct":"✗ Incorrect"}</span><div className="muted small">Your answer: {x.guess} · Correct: {x.correctAnswer}</div></div>)}<button className="btn secondary full" onClick={()=>v.current?.play().catch(()=>{})}>Watch video again</button>{!done&&<button className="btn full" onClick={()=>{setCurrent(current+1);setForm({name:"",age:"",occupation:"",from:""})}}>Next challenge →</button>}</section>}
-    {done&&<section className="card"><div className="eyebrow">DAILY RESULT</div><div className="score">{total} / 16</div><div className="scoreline">Your total score for today</div><p className="muted" style={{textAlign:"center"}}>Leaderboard name: <b style={{color:"#fff"}}>{playerName}</b></p><a className="btn full" href="/leaderboard">View today’s leaderboard</a></section>}
   </>
+}
+
+function DailyStats({date,playerName,results,total}:{date:string;playerName:string;results:Result[];total:number}){
+  return <section>
+    <section className="hero"><div className="eyebrow">{date} · DAILY RESULTS</div><h1>Your day</h1><p>You’ve completed all four challenges. Your playthrough is saved on this browser for today.</p></section>
+    <section className="card stats-summary"><div className="score">{total} / 16</div><div className="scoreline">Total score</div><p className="muted" style={{textAlign:"center"}}>Leaderboard name: <b style={{color:"#fff"}}>{playerName}</b></p></section>
+    <section className="card"><div className="eyebrow">ALL ANSWERS</div><h2>Everything you guessed today</h2>
+      {results.map((result,i)=><div className="stats-challenge" key={i}>
+        <div className="stats-heading"><b>Challenge {i+1}</b><span className="pill">{result.score} / 4</span></div>
+        {result.breakdown.map((x:any)=><div className="answer" key={x.key}><div className="stats-answer-heading"><b>{x.label}</b><span className={x.correct?"ok":"no"}>{x.correct?"✓ Correct":"✗ Incorrect"}</span></div><div className="muted small"><b>Your answer:</b> {x.guess || "—"}</div><div className="muted small"><b>Correct answer:</b> {x.correctAnswer}</div></div>)}
+      </div>)}
+      <Countdown />
+      <a className="btn full" href="/leaderboard">View today’s leaderboard</a>
+    </section>
+  </section>
 }
