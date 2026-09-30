@@ -32,5 +32,8 @@ The project deliberately calculates scores server-side. Never expose the service
 Text answers: normalized similarity >= 90%.
 Age: within 10% of the official age.
 
+## Large video uploads
+The admin uploader uses a two-step flow: the server creates short-lived signed upload targets, the browser uploads media directly to Supabase Storage, and the server then saves the challenge metadata. This avoids Vercel serverless request-size limits that can cause large uploads to hang or fail.
+
 ## Admin security
-Set `ADMIN_EMAILS` to the email address(es) allowed to administer the site. Publishing uses a server-only route and the Supabase service-role key is never exposed to the browser.
+Set `ADMIN_EMAILS` to the email address(es) allowed to administer the site. Publishing uses signed Supabase Storage upload URLs: the browser uploads the video directly to Storage, so large videos do not pass through the Vercel/Next.js function. The Supabase service-role key remains server-only and is never exposed to the browser.
