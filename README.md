@@ -51,3 +51,7 @@ Challenges are reusable archive entries rather than date-specific entries. After
 
 ## Admin challenge archive
 The admin dashboard now includes a searchable archive of submitted challenges. Admins can edit answers/title, replace video or poster media, publish/unpublish challenges, and delete challenges that have never been used in a daily draw. Challenges already used in a daily draw are protected from deletion so historical daily assignments remain valid.
+
+## Fix for daily challenges not generating at midnight
+
+If you deployed an earlier random-archive version, run `supabase/migration-fix-daily-draw.sql` once in the Supabase SQL Editor. This fixes the daily random selection so four distinct published challenges are selected atomically and prevents duplicate-selection/unique-constraint failures at midnight.
