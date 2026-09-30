@@ -81,8 +81,8 @@ export async function PUT(req: Request) {
     const posterSize = Number(body.posterSize || 0);
     const posterType = String(body.posterType || "image/jpeg");
 
-    if (!videoSize) {
-      return NextResponse.json({ error: "A video is required." }, { status: 400 });
+    if (!videoSize && !posterSize) {
+      return NextResponse.json({ error: "A video or poster is required." }, { status: 400 });
     }
     if (videoSize > MAX_VIDEO) {
       return NextResponse.json({ error: "Video is too large. Maximum is 250MB." }, { status: 413 });
@@ -92,12 +92,14 @@ export async function PUT(req: Request) {
     }
 
     const db = adminClient();
-    const archiveId = crypto.randomUUID();
-    const videoPath = `archive/${archiveId}/${crypto.randomUUID()}-${safeFilename(videoName)}`;
-    const { data: videoUpload, error: videoError } = await db.storage
-      .from("challenge-media")
-      .createSignedUploadUrl(videoPath);
-    if (videoError) throw videoError;
+    const archiveId = body.challengeId ? String(body.challengeId) : crypto.randomUUID();
+    let videoUpload: { path: string; token: string } | null = null;
+    if (videoSize > 0) {
+      const videoPath = `archive/${archiveId}/${crypto.randomUUID()}-${safeFilename(videoName)}`;
+      const { data, error } = await db.storage.from("challenge-media").createSignedUploadUrl(videoPath);
+      if (error) throw error;
+      videoUpload = data;
+    }
 
     let posterUpload: { path: string; token: string } | null = null;
     if (posterSize > 0 && posterName) {
@@ -111,7 +113,7 @@ export async function PUT(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      video: { path: videoPath, token: videoUpload.token, contentType: videoType },
+      video: videoUpload ? { path: videoUpload.path, token: videoUpload.token, contentType: videoType } : null,
       poster: posterUpload ? { path: posterUpload.path, token: posterUpload.token, contentType: posterType } : null,
     });
   } catch (e: any) {

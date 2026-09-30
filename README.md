@@ -48,3 +48,6 @@ If you already deployed an earlier Daily Guess version, run `supabase/migration-
 ## Random daily challenge archive
 
 Challenges are reusable archive entries rather than date-specific entries. After running `supabase/migration-random-archive.sql`, publish generic challenges from `/admin`. When the first player opens a date, the database creates and permanently stores a random set of four distinct published challenges for that date. Every player sees the same four challenges in the same order for that day. At least four published archive challenges are required.
+
+## Admin challenge archive
+The admin dashboard now includes a searchable archive of submitted challenges. Admins can edit answers/title, replace video or poster media, publish/unpublish challenges, and delete challenges that have never been used in a daily draw. Challenges already used in a daily draw are protected from deletion so historical daily assignments remain valid.

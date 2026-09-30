@@ -1,126 +1,94 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type UploadTarget = { path: string; token: string; contentType: string };
+type Challenge = { id:string; title:string; video_path:string; poster_path:string|null; name_answer:string; age_answer:string; occupation_answer:string; from_answer:string; is_published:boolean; created_at:string };
+
+type Answers = { name:string; age:string; occupation:string; from:string };
+const blank: Answers = { name:"", age:"", occupation:"", from:"" };
 
 export default function Admin({ email }: { email: string }) {
-  const [title, setTitle] = useState("Who is it?");
-  const [a, setA] = useState({ name: "", age: "", occupation: "", from: "" });
-  const [video, setVideo] = useState<File | null>(null);
-  const [poster, setPoster] = useState<File | null>(null);
-  const [msg, setMsg] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [title,setTitle]=useState("Who is it?"); const [a,setA]=useState<Answers>(blank);
+  const [video,setVideo]=useState<File|null>(null); const [poster,setPoster]=useState<File|null>(null);
+  const [msg,setMsg]=useState(""); const [busy,setBusy]=useState(false); const [challenges,setChallenges]=useState<Challenge[]>([]);
+  const [editing,setEditing]=useState<Challenge|null>(null); const [query,setQuery]=useState("");
 
-  async function save() {
-    if (busy) return;
-    if (!video || Object.values(a).some((v) => !v.trim())) {
-      setMsg("Please provide the video and all four answers.");
-      return;
-    }
+  async function loadArchive(){
+    const r=await fetch("/api/admin/challenges",{cache:"no-store"}); const j=await r.json();
+    if(!r.ok) throw new Error(j.error||"Could not load archive."); setChallenges(j.challenges||[]);
+  }
+  useEffect(()=>{loadArchive().catch(e=>setMsg(e.message));},[]);
 
-    setBusy(true);
-    setMsg("Preparing upload…");
+  function resetForm(){setTitle("Who is it?");setA(blank);setVideo(null);setPoster(null);setEditing(null);}
+  function startEdit(c:Challenge){setEditing(c);setTitle(c.title);setA({name:c.name_answer,age:c.age_answer,occupation:c.occupation_answer,from:c.from_answer});setVideo(null);setPoster(null);window.scrollTo({top:0,behavior:"smooth"});}
 
-    try {
-      const prepare = await fetch("/api/admin/publish", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          videoName: video.name,
-          videoSize: video.size,
-          videoType: video.type || "video/mp4",
-          posterName: poster?.name || "",
-          posterSize: poster?.size || 0,
-          posterType: poster?.type || "image/jpeg",
-        }),
-      });
-      const prepared = await prepare.json();
-      if (!prepare.ok) throw new Error(prepared.error || "Could not prepare upload.");
+  async function uploadFiles(challengeId?:string){
+    if(!video) return {videoPath: editing?.video_path || "", posterPath: editing?.poster_path || null};
+    const prepare=await fetch("/api/admin/publish",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({challengeId,videoName:video.name,videoSize:video.size,videoType:video.type||"video/mp4",posterName:poster?.name||"",posterSize:poster?.size||0,posterType:poster?.type||"image/jpeg"})});
+    const prepared=await prepare.json(); if(!prepare.ok) throw new Error(prepared.error||"Could not prepare upload.");
+    const supabase=createClient();
+    let videoPath=editing?.video_path||"";
+    if(video&&prepared.video){setMsg("Uploading video…");const vr=await supabase.storage.from("challenge-media").uploadToSignedUrl((prepared.video as UploadTarget).path,(prepared.video as UploadTarget).token,video);if(vr.error)throw vr.error;videoPath=(prepared.video as UploadTarget).path;}
+    let posterPath=editing?.poster_path||null;
+    if(poster&&prepared.poster){setMsg("Uploading poster…");const pr=await supabase.storage.from("challenge-media").uploadToSignedUrl((prepared.poster as UploadTarget).path,(prepared.poster as UploadTarget).token,poster);if(pr.error)throw pr.error;posterPath=(prepared.poster as UploadTarget).path;}
+    return {videoPath,posterPath};
+  }
 
-      const supabase = createClient();
-      const videoTarget = prepared.video as UploadTarget;
-      const posterTarget = prepared.poster as UploadTarget | null;
-
-      setMsg("Uploading video…");
-      const videoResult = await supabase.storage
-        .from("challenge-media")
-        .uploadToSignedUrl(videoTarget.path, videoTarget.token, video);
-      if (videoResult.error) throw videoResult.error;
-
-      let posterPath: string | null = null;
-      if (poster && posterTarget) {
-        setMsg("Uploading poster…");
-        const posterResult = await supabase.storage
-          .from("challenge-media")
-          .uploadToSignedUrl(posterTarget.path, posterTarget.token, poster);
-        if (posterResult.error) throw posterResult.error;
-        posterPath = posterTarget.path;
+  async function save(){
+    if(busy)return;
+    if(Object.values(a).some(v=>!v.trim())||(!editing&&!video)){setMsg("Please provide the video and all four answers.");return;}
+    setBusy(true);setMsg(editing?"Preparing update…":"Preparing upload…");
+    try{
+      if(editing){
+        const media=await uploadFiles(editing.id);
+        setMsg("Saving changes…");
+        const r=await fetch(`/api/admin/challenges/${editing.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,name:a.name,age:a.age,occupation:a.occupation,from:a.from,videoPath:media.videoPath,posterPath:media.posterPath})});
+        const j=await r.json();if(!r.ok)throw new Error(j.error||"Update failed."); setMsg("Challenge updated successfully.");
+      }else{
+        const media=await uploadFiles(); setMsg("Publishing challenge…");
+        const r=await fetch("/api/admin/publish",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,name:a.name,age:a.age,occupation:a.occupation,from:a.from,videoPath:media.videoPath,posterPath:media.posterPath})});
+        const j=await r.json();if(!r.ok)throw new Error(j.error||"Publish failed.");setMsg("Challenge published successfully.");
       }
-
-      setMsg("Publishing challenge…");
-      const finalize = await fetch("/api/admin/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          name: a.name,
-          age: a.age,
-          occupation: a.occupation,
-          from: a.from,
-          videoPath: videoTarget.path,
-          posterPath,
-        }),
-      });
-      const result = await finalize.json();
-      if (!finalize.ok) throw new Error(result.error || "Publish failed.");
-
-      setMsg("Challenge published successfully.");
-    } catch (e: any) {
-      console.error(e);
-      setMsg(e?.message || "Publish failed. Please try again.");
-    } finally {
-      setBusy(false);
-    }
+      resetForm(); await loadArchive();
+    }catch(e:any){console.error(e);setMsg(e?.message||"Operation failed.");}finally{setBusy(false);}
   }
 
-  async function logout() {
-    await fetch("/api/admin/logout", { method: "POST" });
-    location.href = "/admin/login";
+  async function toggle(c:Challenge){
+    setBusy(true);setMsg("Saving status…");try{const r=await fetch(`/api/admin/challenges/${c.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({isPublished:!c.is_published})});const j=await r.json();if(!r.ok)throw new Error(j.error||"Could not change status.");await loadArchive();setMsg(c.is_published?"Challenge unpublished.":"Challenge published.");}catch(e:any){setMsg(e.message)}finally{setBusy(false)}
   }
+  async function remove(c:Challenge){if(!confirm(`Delete “${c.title}”? This cannot be undone.`))return;setBusy(true);try{const r=await fetch(`/api/admin/challenges/${c.id}`,{method:"DELETE"});const j=await r.json();if(!r.ok)throw new Error(j.error||"Could not delete challenge.");if(editing?.id===c.id)resetForm();await loadArchive();setMsg("Challenge deleted.");}catch(e:any){setMsg(e.message)}finally{setBusy(false)}}
+  async function logout(){await fetch("/api/admin/logout",{method:"POST"});location.href="/admin/login";}
 
-  return (
+  const filtered=challenges.filter(c=>`${c.title} ${c.name_answer} ${c.occupation_answer} ${c.from_answer}`.toLowerCase().includes(query.toLowerCase()));
+  return <>
     <section className="card">
-      <span className="pill">ADMIN</span>
-      <span className="muted small"> {email}</span>
-      <button className="btn secondary" style={{ float: "right" }} onClick={logout} disabled={busy}>Sign out</button>
-      <h1>Challenge archive</h1>
+      <span className="pill">ADMIN</span><span className="muted small"> {email}</span>
+      <button className="btn secondary" style={{float:"right"}} onClick={logout} disabled={busy}>Sign out</button>
+      <h1>{editing?"Edit challenge":"Challenge archive"}</h1>
       <div className="notice">Upload reusable challenges here. Every day, the site automatically selects four different published challenges at random from this archive.</div>
-
+      {editing&&<div className="success" style={{marginTop:15}}>Editing <b>{editing.title}</b>. Leave the video/poster blank to keep the existing media.</div>}
       <div className="questions">
-        <div className="field"><label>Title</label><input value={title} onChange={(e) => setTitle(e.target.value)} disabled={busy} /></div>
-        {[['name', 'Name'], ['age', 'Age'], ['occupation', 'Occupation'], ['from', "Where they're from"]].map(([k, l]) => (
-          <div className="field" key={k}>
-            <label>{l}</label>
-            <input value={(a as any)[k]} onChange={(e) => setA({ ...a, [k]: e.target.value })} disabled={busy} />
-          </div>
-        ))}
+        <div className="field"><label>Title</label><input value={title} onChange={e=>setTitle(e.target.value)} disabled={busy}/></div>
+        {([['name','Name'],['age','Age'],['occupation','Occupation'],['from',"Where they're from"]] as const).map(([k,l])=><div className="field" key={k}><label>{l}</label><input value={a[k]} onChange={e=>setA({...a,[k]:e.target.value})} disabled={busy}/></div>)}
       </div>
-
       <div className="questions">
-        <div className="field">
-          <label>Video</label>
-          <input type="file" accept="video/*" onChange={(e) => setVideo(e.target.files?.[0] || null)} disabled={busy} />
-          <span className="muted small">Uploaded directly to storage — large videos no longer pass through the website server.</span>
-        </div>
-        <div className="field">
-          <label>First-frame poster</label>
-          <input type="file" accept="image/*" onChange={(e) => setPoster(e.target.files?.[0] || null)} disabled={busy} />
-        </div>
+        <div className="field"><label>{editing?"Replace video (optional)":"Video"}</label><input type="file" accept="video/*" onChange={e=>setVideo(e.target.files?.[0]||null)} disabled={busy}/>{editing&&<span className="muted small">Existing video will be kept if no file is selected.</span>}</div>
+        <div className="field"><label>{editing?"Replace poster (optional)":"First-frame poster"}</label><input type="file" accept="image/*" onChange={e=>setPoster(e.target.files?.[0]||null)} disabled={busy}/></div>
       </div>
-
-      {msg && <div className={msg.includes("successfully") ? "success" : msg.includes("…") ? "notice" : "error"} style={{ marginTop: 15 }}>{msg}</div>}
-      <button className="btn full" onClick={save} disabled={busy}>{busy ? "Publishing…" : "Publish challenge"}</button>
+      {msg&&<div className={msg.includes("successfully")||msg.includes("unpublished")||msg.includes("published.")?"success":msg.includes("…")?"notice":"error"} style={{marginTop:15}}>{msg}</div>}
+      <button className="btn full" onClick={save} disabled={busy}>{busy?(editing?"Saving…":"Publishing…"):(editing?"Save changes":"Publish challenge")}</button>
+      {editing&&<button className="btn secondary full" onClick={resetForm} disabled={busy}>Cancel editing</button>}
     </section>
-  );
+
+    <section className="card">
+      <div className="stats-heading"><div><span className="pill">ARCHIVE</span><h2 style={{margin:"8px 0 0"}}>Submitted challenges ({challenges.length})</h2></div><button className="btn secondary" onClick={()=>loadArchive()} disabled={busy}>Refresh</button></div>
+      <div className="field" style={{marginTop:15}}><label>Search archive</label><input placeholder="Search title, name, occupation or location…" value={query} onChange={e=>setQuery(e.target.value)}/></div>
+      <div style={{overflowX:"auto",marginTop:12}}><table className="table"><thead><tr><th>Challenge</th><th>Answers</th><th>Status</th><th></th></tr></thead><tbody>
+      {filtered.map(c=><tr key={c.id}><td><b>{c.title}</b><div className="muted small">{new Date(c.created_at).toLocaleDateString("en-GB")}</div></td><td className="small">{c.name_answer} · {c.age_answer}<br/>{c.occupation_answer} · {c.from_answer}</td><td><span className="pill">{c.is_published?"Published":"Unpublished"}</span></td><td style={{whiteSpace:"nowrap"}}><button className="btn secondary" onClick={()=>startEdit(c)} disabled={busy}>Edit</button> <button className="btn secondary" onClick={()=>toggle(c)} disabled={busy}>{c.is_published?"Unpublish":"Publish"}</button> <button className="btn secondary" onClick={()=>remove(c)} disabled={busy}>Delete</button></td></tr>)}
+      {!filtered.length&&<tr><td colSpan={4} className="muted">No challenges found.</td></tr>}
+      </tbody></table></div>
+      <p className="muted small">Challenges that have already appeared in a daily draw cannot be deleted because the daily result needs to remain intact. You can unpublish them instead.</p>
+    </section>
+  </>;
 }
