@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Countdown from "./Countdown";
 
-type Challenge = { id:string; slot:number; title:string; videoUrl:string; posterUrl:string|null };
+type Challenge = { id:string; slot:number; title:string; posterUrl:string|null };
 type Result = { score:number; breakdown:any[] };
 type SavedDay = { playerName:string; current:number; results:Result[]; done:boolean; form:{name:string;age:string;occupation:string;from:string} };
 
@@ -14,6 +14,7 @@ export default function Game({ date, challenges }: { date:string; challenges:Cha
   const [unlocked,setUnlocked]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  const [videoUrl,setVideoUrl]=useState<string | null>(null);
   const [form,setForm]=useState({name:"",age:"",occupation:"",from:""});
   const [loaded,setLoaded]=useState(false);
   const v=useRef<HTMLVideoElement>(null);
@@ -41,7 +42,17 @@ export default function Game({ date, challenges }: { date:string; challenges:Cha
     try { localStorage.setItem(storageKey,JSON.stringify(saved)); } catch {}
   },[loaded,storageKey,playerName,current,results,done,form]);
 
-  useEffect(()=>{setUnlocked(Boolean(results[current])); const x=v.current; if(!x)return; x.pause(); x.currentTime=0;},[current,results]);
+  useEffect(()=>{
+    setUnlocked(Boolean(results[current]));
+    setVideoUrl(null);
+    const x=v.current; if(!x)return; x.pause(); x.currentTime=0;
+    if(results[current] && playerName.trim() && challenge) {
+      fetch(`/api/video/${challenge.id}?date=${encodeURIComponent(date)}&displayName=${encodeURIComponent(playerName.trim())}`, { cache:"no-store" })
+        .then(r=>r.ok?r.json():Promise.reject(new Error("Video unavailable")))
+        .then(j=>setVideoUrl(j.videoUrl))
+        .catch(()=>{});
+    }
+  },[current,results,date,playerName,challenge]);
   useEffect(()=>{const x=v.current;if(!x)return;const f=()=>{if(!unlocked){x.pause();x.currentTime=0}};x.addEventListener("play",f);return()=>x.removeEventListener("play",f)},[unlocked]);
 
   const u=(k:string,val:string)=>setForm({...form,[k]:val});
@@ -52,8 +63,11 @@ export default function Game({ date, challenges }: { date:string; challenges:Cha
     try{
       const r=await fetch("/api/submit",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({challengeId:challenge.id,date,displayName:playerName.trim(),answers:form})});
       const j=await r.json(); if(!r.ok)throw Error(j.error||"Submission failed.");
-      setResults(prev=>[...prev,j]);setUnlocked(true);
-      setTimeout(()=>v.current?.play().catch(()=>{}),100);
+      setResults(prev=>[...prev,j]);
+      const vr = await fetch(`/api/video/${challenge.id}?date=${encodeURIComponent(date)}&displayName=${encodeURIComponent(playerName.trim())}`, { cache:"no-store" });
+      if(vr.ok){ const vj=await vr.json(); setVideoUrl(vj.videoUrl); setUnlocked(true); }
+      else { setUnlocked(true); }
+      setTimeout(()=>v.current?.play().catch(()=>{}),250);
       if(current===challenges.length-1)setDone(true);
     }catch(e:any){setError(e.message||"Submission failed")}finally{setBusy(false)}
   }
@@ -70,7 +84,7 @@ export default function Game({ date, challenges }: { date:string; challenges:Cha
     <section className="card">
       <div className="progress"><span style={{width:`${(current/challenges.length)*100}%`}}/></div>
       <div className="player-field field"><label>Your leaderboard name</label><input value={playerName} onChange={e=>setPlayerName(e.target.value)} placeholder="Enter the name you want shown" disabled={results.length>current}/><span className="muted small">This is shown on the leaderboard — it is separate from your “Name” guess.</span></div>
-      <div className="video"><video ref={v} src={challenge.videoUrl} poster={challenge.posterUrl||undefined} playsInline controls={unlocked}/>{!unlocked&&<div className="locked-badge"><span>🔒</span><div><b>Video locked</b><div className="muted small">Submit your four guesses to play</div></div></div>}</div>
+      <div className="video"><video ref={v} src={videoUrl||undefined} poster={challenge.posterUrl||undefined} playsInline controls={unlocked&&!!videoUrl}/>{!unlocked&&<div className="locked-badge"><span>🔒</span><div><b>Video locked</b><div className="muted small">Submit your four guesses to play</div></div></div>}</div>
       <form onSubmit={submit}>
         <div className="questions">{[["name","Name"],["age","Age"],["occupation","Occupation"],["from","Where are they from?"]].map(([k,l])=><div className="field" key={k}><label>{l}</label><input required value={(form as any)[k]} onChange={e=>u(k,e.target.value)} inputMode={k==="age"?"numeric":undefined} disabled={unlocked}/></div>)}</div>
         {error&&<div className="error" style={{marginTop:14}}>{error}</div>}

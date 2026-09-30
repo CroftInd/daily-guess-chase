@@ -1,3 +1,28 @@
 import Countdown from "@/components/Countdown";
-import{adminClient}from"@/lib/supabase/admin";export const dynamic="force-dynamic";function uk(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/London",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
-export default async function Leaderboard(){const db=adminClient(),date=uk();await db.rpc("get_or_create_daily_challenges",{p_date:date});const{data:assignments}=await db.from("daily_challenges").select("challenge_id").eq("challenge_date",date);let rows:any[]=[];if(assignments?.length){const ids=assignments.map(x=>x.challenge_id);const{data}=await db.from("submissions").select("display_name,score,submitted_at,challenge_id").in("challenge_id",ids).order("submitted_at",{ascending:true});const map=new Map<string,any>();for(const x of data||[]){const k=x.display_name.trim();if(!map.has(k))map.set(k,{display_name:k,score:0,completed:0,submitted_at:x.submitted_at});const r=map.get(k);r.score+=x.score;r.completed++}rows=[...map.values()].sort((a,b)=>b.score-a.score||b.completed-a.completed||new Date(a.submitted_at).getTime()-new Date(b.submitted_at).getTime()).slice(0,50)}return <section className="card" style={{marginTop:40}}><div className="eyebrow">TODAY · 4 RANDOM CHALLENGES</div><h1>Leaderboard</h1><Countdown /><table className="table"><thead><tr><th>#</th><th>Player</th><th>Score</th><th>Progress</th></tr></thead><tbody>{rows.map((x,i)=><tr key={x.display_name}><td>{i+1}</td><td>{x.display_name}</td><td><b>{x.score}/16</b></td><td className="muted small">{x.completed}/4 challenges</td></tr>)}</tbody></table>{!rows.length&&<p className="muted">No scores yet today.</p>}</section>}
+import { adminClient } from "@/lib/supabase/admin";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function uk(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/London",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
+
+export default async function Leaderboard(){
+  const db=adminClient(), date=uk();
+  await db.rpc("get_or_create_daily_challenges",{p_date:date});
+  const {data:assignments,error:ae}=await db.from("daily_challenges").select("challenge_id").eq("challenge_date",date);
+  let rows:any[]=[];
+  if(!ae && assignments?.length){
+    const ids=assignments.map(x=>x.challenge_id);
+    const {data,error}=await db.from("submissions").select("display_name,score,submitted_at,challenge_id").in("challenge_id",ids).order("submitted_at",{ascending:true});
+    if(!error){
+      const map=new Map<string,any>();
+      for(const x of data||[]){
+        const k=x.display_name.trim().toLowerCase();
+        if(!map.has(k)) map.set(k,{display_name:x.display_name.trim(),score:0,completed:0,submitted_at:x.submitted_at,challenges:new Set<string>()});
+        const r=map.get(k);
+        if(!r.challenges.has(x.challenge_id)){r.challenges.add(x.challenge_id);r.score+=Number(x.score)||0;r.completed++;}
+      }
+      rows=[...map.values()].map(r=>({...r})).sort((a,b)=>b.score-a.score||b.completed-a.completed||new Date(a.submitted_at).getTime()-new Date(b.submitted_at).getTime()).slice(0,50);
+    }
+  }
+  return <section className="card" style={{marginTop:40}}><div className="eyebrow">TODAY · 4 RANDOM CHALLENGES</div><h1>Leaderboard</h1><Countdown /><table className="table"><thead><tr><th>#</th><th>Player</th><th>Score</th><th>Progress</th></tr></thead><tbody>{rows.map((x,i)=><tr key={`${x.display_name}-${i}`}><td>{i+1}</td><td>{x.display_name}</td><td><b>{x.score}/16</b></td><td className="muted small">{x.completed}/4 challenges</td></tr>)}</tbody></table>{!rows.length&&<p className="muted">No scores yet today.</p>}</section>
+}
