@@ -26,11 +26,28 @@ export async function GET(req:Request){
   while(dates.has(cursor.toISOString().slice(0,10))){streak++;cursor.setUTCDate(cursor.getUTCDate()-1);}
   const best=days.reduce((m,d)=>Math.max(m,d.score),0);
   const avg=days.length?days.reduce((n,d)=>n+d.score,0)/days.length:0;
+
+  const completedDays=days.filter(d=>d.completed===4&&d.elapsed>0);
+  const fastest=completedDays.length
+    ? Math.min(...completedDays.map(d=>d.elapsed))
+    : null;
+
   const achievements=[];
   if(best>=16) achievements.push({id:"perfect",name:"Perfect Day",icon:"🏆",desc:"Score 16/16 in a day."});
   if(streak>=7) achievements.push({id:"week",name:"Week Warrior",icon:"🔥",desc:"Complete seven consecutive days."});
   if(totalCorrect>=100) achievements.push({id:"century",name:"Century Club",icon:"💯",desc:"Reach 100 correct answers."});
   if(totalQuestions>=10) achievements.push({id:"accuracy",name:"Dead Accurate",icon:"🎯",desc:"Build a large bank of answers."});
   if(days.some(d=>d.completed===4&&d.elapsed<=120)) achievements.push({id:"speed",name:"Speed Demon",icon:"⚡",desc:"Complete a day in two minutes or less."});
-  return NextResponse.json({playerName:name,days,totalCorrect,totalQuestions,average:avg,currentStreak:streak,best,fastest,achievements});
+
+  return NextResponse.json({
+    playerName:name,
+    days,
+    totalCorrect,
+    totalQuestions,
+    average:avg,
+    currentStreak:streak,
+    best,
+    fastest,
+    achievements
+  });
 }

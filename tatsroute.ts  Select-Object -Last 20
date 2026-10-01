@@ -1,0 +1,37 @@
+warning: in the working copy of 'app/api/player/stats/route.ts', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/app/api/player/stats/route.ts b/app/api/player/stats/route.ts[m
+[1mindex be3f368..559f470 100644[m
+[1m--- a/app/api/player/stats/route.ts[m
+[1m+++ b/app/api/player/stats/route.ts[m
+[36m@@ -26,11 +26,28 @@[m [mexport async function GET(req:Request){[m
+   while(dates.has(cursor.toISOString().slice(0,10))){streak++;cursor.setUTCDate(cursor.getUTCDate()-1);}[m
+   const best=days.reduce((m,d)=>Math.max(m,d.score),0);[m
+   const avg=days.length?days.reduce((n,d)=>n+d.score,0)/days.length:0;[m
+[32m+[m
+[32m+[m[32m  const completedDays=days.filter(d=>d.completed===4&&d.elapsed>0);[m
+[32m+[m[32m  const fastest=completedDays.length[m
+[32m+[m[32m    ? Math.min(...completedDays.map(d=>d.elapsed))[m
+[32m+[m[32m    : null;[m
+[32m+[m
+   const achievements=[];[m
+   if(best>=16) achievements.push({id:"perfect",name:"Perfect Day",icon:"🏆",desc:"Score 16/16 in a day."});[m
+   if(streak>=7) achievements.push({id:"week",name:"Week Warrior",icon:"🔥",desc:"Complete seven consecutive days."});[m
+   if(totalCorrect>=100) achievements.push({id:"century",name:"Century Club",icon:"💯",desc:"Reach 100 correct answers."});[m
+   if(totalQuestions>=10) achievements.push({id:"accuracy",name:"Dead Accurate",icon:"🎯",desc:"Build a large bank of answers."});[m
+   if(days.some(d=>d.completed===4&&d.elapsed<=120)) achievements.push({id:"speed",name:"Speed Demon",icon:"⚡",desc:"Complete a day in two minutes or less."});[m
+[31m-  return NextResponse.json({playerName:name,days,totalCorrect,totalQuestions,average:avg,currentStreak:streak,best,fastest,achievements});[m
+[31m-}[m
+[32m+[m
+[32m+[m[32m  return NextResponse.json({[m
+[32m+[m[32m    playerName:name,[m
+[32m+[m[32m    days,[m
+[32m+[m[32m    totalCorrect,[m
+[32m+[m[32m    totalQuestions,[m
+[32m+[m[32m    average:avg,[m
+[32m+[m[32m    currentStreak:streak,[m
+[32m+[m[32m    best,[m
+[32m+[m[32m    fastest,[m
+[32m+[m[32m    achievements[m
+[32m+[m[32m  });[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
