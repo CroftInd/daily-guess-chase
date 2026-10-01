@@ -27,7 +27,9 @@ export async function POST(req: Request) {
       return { key: k, label: labels[k], guess: String(answers[k]), correctAnswer: String((c as any)[`${k}_answer`]), correct, confidence: String(confidence?.[k]||"") };
     });
 
-    // Prevent accidental duplicate submissions from refreshing/retries.
+    // A player may answer the same archived challenge again on a later day.
+    // The duplicate check is deliberately scoped to BOTH challenge and daily date,
+    // so previous-day submissions never lock a repeated challenge.
     const { data: existing } = await db.from("submissions").select("id,score").eq("challenge_id", challengeId).eq("challenge_date", date).ilike("display_name", player).maybeSingle();
     if (existing) {
       return NextResponse.json({ error: "This challenge has already been submitted for this leaderboard name." }, { status: 409 });
