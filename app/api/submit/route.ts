@@ -7,10 +7,10 @@ const labels: Record<string, string> = { name: "Name", age: "Age", occupation: "
 export async function POST(req: Request) {
   try {
     const b = await req.json();
-    const { challengeId, date, answers, displayName } = b;
-    const player = String(displayName || "").trim().slice(0, 40);
-    if (!challengeId || !date || !player || !answers?.name || !answers?.age || !answers?.occupation || !answers?.from) {
-      return NextResponse.json({ error: "Player name and all four answers are required." }, { status: 400 });
+    const { challengeId, date, answers, attemptId } = b;
+    const attempt = String(attemptId || "").trim();
+    if (!challengeId || !date || !attempt || !answers?.name || !answers?.age || !answers?.occupation || !answers?.from) {
+      return NextResponse.json({ error: "All four answers are required." }, { status: 400 });
     }
 
     const db = adminClient();
@@ -27,13 +27,10 @@ export async function POST(req: Request) {
       return { key: k, label: labels[k], guess: String(answers[k]), correctAnswer: String((c as any)[`${k}_answer`]), correct };
     });
 
-    // Prevent accidental duplicate submissions from refreshing/retries.
-    const { data: existing } = await db.from("submissions").select("id,score").eq("challenge_id", challengeId).eq("display_name", player).maybeSingle();
-    if (existing) {
-      return NextResponse.json({ error: "This challenge has already been submitted for this leaderboard name." }, { status: 409 });
-    }
+    const { data: existing } = await db.from("submissions").select("id,score").eq("challenge_id", challengeId).eq("attempt_id", attempt).maybeSingle();
+    if (existing) return NextResponse.json({ error: "This challenge has already been submitted." }, { status: 409 });
 
-    const { error: se } = await db.from("submissions").insert({ challenge_id: challengeId, display_name: player, score });
+    const { error: se } = await db.from("submissions").insert({ challenge_id: challengeId, attempt_id: attempt, display_name: `__pending_${attempt}`, score });
     if (se) {
       console.error("Submission insert failed:", se);
       return NextResponse.json({ error: "Your score could not be saved. Please try again." }, { status: 500 });

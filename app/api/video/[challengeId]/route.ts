@@ -6,9 +6,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ challeng
     const { challengeId } = await params;
     const url = new URL(req.url);
     const date = url.searchParams.get("date") || "";
-    const displayName = (url.searchParams.get("displayName") || "").trim().slice(0, 40);
+    const attemptId = (url.searchParams.get("attemptId") || "").trim();
 
-    if (!challengeId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !displayName) {
+    if (!challengeId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !attemptId) {
       return NextResponse.json({ error: "Video unavailable." }, { status: 400 });
     }
 
@@ -25,7 +25,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ challeng
       .from("submissions")
       .select("id")
       .eq("challenge_id", challengeId)
-      .eq("display_name", displayName)
+      .eq("attempt_id", attemptId)
       .maybeSingle();
     if (!submission) return NextResponse.json({ error: "Submit your guesses first." }, { status: 403 });
 

@@ -12,7 +12,7 @@ export default async function Leaderboard(){
   let rows:any[]=[];
   if(!ae && assignments?.length){
     const ids=assignments.map(x=>x.challenge_id);
-    const {data,error}=await db.from("submissions").select("display_name,score,submitted_at,challenge_id").in("challenge_id",ids).order("submitted_at",{ascending:true});
+    const {data,error}=await db.from("submissions").select("display_name,score,submitted_at,challenge_id").in("challenge_id",ids).not("display_name","like","__pending_%").order("submitted_at",{ascending:true});
     if(!error){
       const map=new Map<string,any>();
       for(const x of data||[]){
