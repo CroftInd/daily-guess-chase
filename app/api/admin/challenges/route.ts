@@ -19,7 +19,7 @@ export async function GET() {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
     const { data, error } = await adminClient().from("challenges")
-      .select("id,title,video_path,poster_path,name_answer,age_answer,occupation_answer,from_answer,is_published,difficulty,created_at")
+      .select("id,title,video_path,poster_path,name_answer,age_answer,occupation_answer,from_answer,is_published,difficulty,clues,created_at")
       .order("created_at", { ascending: false });
     if (error) throw error;
     const ids=(data||[]).map((x:any)=>x.id);

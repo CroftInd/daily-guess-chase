@@ -8,16 +8,16 @@ export async function GET(req:Request){
   const name=clean(new URL(req.url).searchParams.get("name")||"");
   if(!name) return NextResponse.json({error:"Player name is required."},{status:400});
   const db=adminClient();
-  const {data:subs,error}=await db.from("submissions").select("challenge_id,challenge_date,display_name,score,answers,confidence,elapsed_seconds,submitted_at").ilike("display_name",name).order("challenge_date",{ascending:false}).order("submitted_at",{ascending:false});
+  const {data:subs,error}=await db.from("submissions").select("challenge_id,challenge_date,display_name,score,answers,clue_count,elapsed_seconds,submitted_at").ilike("display_name",name).order("challenge_date",{ascending:false}).order("submitted_at",{ascending:false});
   if(error) return NextResponse.json({error:error.message},{status:500});
   const byDay=new Map<string,any>();
   for(const s of subs||[]){
     const d=s.challenge_date||new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/London"}).format(new Date(s.submitted_at));
-    if(!byDay.has(d)) byDay.set(d,{date:d,score:0,completed:0,elapsed:0,submissions:[]});
-    const x=byDay.get(d); x.score+=Number(s.score)||0; x.completed++; x.elapsed+=Number(s.elapsed_seconds)||0; x.submissions.push(s);
+    if(!byDay.has(d)) byDay.set(d,{date:d,score:0,completed:0,elapsed:0,clues:0,submissions:[]});
+    const x=byDay.get(d); x.score+=Number(s.score)||0; x.completed++; x.elapsed+=Number(s.elapsed_seconds)||0; x.clues+=Number(s.clue_count)||0; x.submissions.push(s);
   }
   const days=[...byDay.values()].sort((a,b)=>b.date.localeCompare(a.date));
-  const totalCorrect=days.reduce((n,d)=>n+d.score,0), totalQuestions=days.reduce((n,d)=>n+d.completed*4,0);
+  const totalCorrect=days.reduce((n,d)=>n+d.score,0), totalClues=days.reduce((n,d)=>n+d.clues,0), totalQuestions=days.reduce((n,d)=>n+d.completed*4,0);
   let streak=0;
   const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/London"}).format(new Date());
   const dates=new Set(days.filter(d=>d.completed===4).map(d=>d.date));
@@ -33,5 +33,5 @@ export async function GET(req:Request){
   if(totalCorrect>=100) achievements.push({id:"century",name:"Century Club",icon:"💯",desc:"Reach 100 correct answers."});
   if(totalQuestions>=10) achievements.push({id:"accuracy",name:"Dead Accurate",icon:"🎯",desc:"Build a large bank of answers."});
   if(days.some(d=>d.completed===4&&d.elapsed<=120)) achievements.push({id:"speed",name:"Speed Demon",icon:"⚡",desc:"Complete a day in two minutes or less."});
-  return NextResponse.json({playerName:name,days,totalCorrect,totalQuestions,average:avg,currentStreak:streak,best,fastest:fastest||null,achievements});
+  return NextResponse.json({playerName:name,days,totalCorrect,totalClues,totalQuestions,average:avg,currentStreak:streak,best,fastest:fastest||null,achievements});
 }

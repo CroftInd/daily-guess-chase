@@ -46,3 +46,11 @@ If upgrading an existing deployment, run the migrations in Supabase SQL Editor. 
 
 ## Security
 Correct answers remain server-side. The pre-submission page receives only challenge metadata/posters, never the video URL or correct answers. The service-role key is server-only. For a public launch, add rate limiting/CAPTCHA and monitoring.
+
+## Clues and answer matching
+
+Run `supabase/migration-clues.sql` once after the existing migrations. Admins can add one clue for each of the four answers. Players can request a clue before submitting; each requested clue counts toward their daily clue total. The leaderboard orders equal scores by **fewest clues used, then fastest total answering time**.
+
+Answer matching is case-insensitive and gap/punctuation flexible. For example, `JamesBond`, `James Bond`, and `james-bond` are treated as the same normalized answer when otherwise equivalent. The existing 90% similarity threshold still applies to non-exact answers.
+
+Confidence selections have been removed from the player experience.

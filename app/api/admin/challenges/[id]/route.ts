@@ -23,6 +23,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     for (const [input, column] of [["title","title"],["name","name_answer"],["age","age_answer"],["occupation","occupation_answer"],["from","from_answer"],["videoPath","video_path"],["posterPath","poster_path"],["difficulty","difficulty"]] as const) {
       if (body[input] !== undefined) updates[column] = body[input] === null ? null : String(body[input]).trim();
     }
+    if (body.clues !== undefined) updates.clues = { name:String(body.clues?.name||"").trim().slice(0,240), age:String(body.clues?.age||"").trim().slice(0,240), occupation:String(body.clues?.occupation||"").trim().slice(0,240), from:String(body.clues?.from||"").trim().slice(0,240) };
     if (body.isPublished !== undefined) updates.is_published = Boolean(body.isPublished);
     if (updates.difficulty && !["easy","medium","hard"].includes(String(updates.difficulty))) return NextResponse.json({error:"Invalid difficulty."},{status:400});
     if (Object.keys(updates).some(key => ["name_answer","age_answer","occupation_answer","from_answer","video_path"].includes(key))) {

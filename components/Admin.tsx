@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type UploadTarget = { path: string; token: string; contentType: string };
-type Challenge = { id:string; title:string; video_path:string; poster_path:string|null; name_answer:string; age_answer:string; occupation_answer:string; from_answer:string; difficulty:string; is_published:boolean; created_at:string; usage?:any };
+type Challenge = { id:string; title:string; video_path:string; poster_path:string|null; name_answer:string; age_answer:string; occupation_answer:string; from_answer:string; difficulty:string; clues?:Record<string,string>; is_published:boolean; created_at:string; usage?:any };
 
 type Answers = { name:string; age:string; occupation:string; from:string };
 const blank: Answers = { name:"", age:"", occupation:"", from:"" };
@@ -12,6 +12,7 @@ export default function Admin({ email }: { email: string }) {
   const [title,setTitle]=useState("Who is it?"); const [a,setA]=useState<Answers>(blank);
   const [video,setVideo]=useState<File|null>(null); const [poster,setPoster]=useState<File|null>(null);
   const [msg,setMsg]=useState(""); const [busy,setBusy]=useState(false); const [challenges,setChallenges]=useState<Challenge[]>([]);
+  const [clues,setClues]=useState<Record<string,string>>({name:"",age:"",occupation:"",from:""});
   const [editing,setEditing]=useState<Challenge|null>(null); const [query,setQuery]=useState(""); const [difficulty,setDifficulty]=useState("medium");
 
   async function loadArchive(){
@@ -20,8 +21,8 @@ export default function Admin({ email }: { email: string }) {
   }
   useEffect(()=>{loadArchive().catch(e=>setMsg(e.message));},[]);
 
-  function resetForm(){setTitle("Who is it?");setA(blank);setVideo(null);setPoster(null);setEditing(null);setDifficulty("medium");}
-  function startEdit(c:Challenge){setEditing(c);setTitle(c.title);setA({name:c.name_answer,age:c.age_answer,occupation:c.occupation_answer,from:c.from_answer});setDifficulty(c.difficulty||"medium");setVideo(null);setPoster(null);window.scrollTo({top:0,behavior:"smooth"});}
+  function resetForm(){setTitle("Who is it?");setA(blank);setVideo(null);setPoster(null);setEditing(null);setDifficulty("medium");setClues({name:"",age:"",occupation:"",from:""});}
+  function startEdit(c:Challenge){setEditing(c);setTitle(c.title);setA({name:c.name_answer,age:c.age_answer,occupation:c.occupation_answer,from:c.from_answer});setDifficulty(c.difficulty||"medium");setClues({name:c.clues?.name||"",age:c.clues?.age||"",occupation:c.clues?.occupation||"",from:c.clues?.from||""});setVideo(null);setPoster(null);window.scrollTo({top:0,behavior:"smooth"});}
 
   async function uploadFiles(challengeId?:string){
     if(!video && !poster) return {videoPath: editing?.video_path || "", posterPath: editing?.poster_path || null};
@@ -43,11 +44,11 @@ export default function Admin({ email }: { email: string }) {
       if(editing){
         const media=await uploadFiles(editing.id);
         setMsg("Saving changes…");
-        const r=await fetch(`/api/admin/challenges/${editing.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,name:a.name,age:a.age,occupation:a.occupation,from:a.from,difficulty,videoPath:media.videoPath,posterPath:media.posterPath})});
+        const r=await fetch(`/api/admin/challenges/${editing.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,name:a.name,age:a.age,occupation:a.occupation,from:a.from,difficulty,clues,videoPath:media.videoPath,posterPath:media.posterPath})});
         const j=await r.json();if(!r.ok)throw new Error(j.error||"Update failed."); setMsg("Challenge updated successfully.");
       }else{
         const media=await uploadFiles(); setMsg("Publishing challenge…");
-        const r=await fetch("/api/admin/publish",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,name:a.name,age:a.age,occupation:a.occupation,from:a.from,difficulty,videoPath:media.videoPath,posterPath:media.posterPath})});
+        const r=await fetch("/api/admin/publish",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,name:a.name,age:a.age,occupation:a.occupation,from:a.from,difficulty,clues,videoPath:media.videoPath,posterPath:media.posterPath})});
         const j=await r.json();if(!r.ok)throw new Error(j.error||"Publish failed.");setMsg("Challenge published successfully.");
       }
       resetForm(); await loadArchive();
@@ -71,6 +72,10 @@ export default function Admin({ email }: { email: string }) {
       <div className="questions">
         <div className="field"><label>Title</label><input value={title} onChange={e=>setTitle(e.target.value)} disabled={busy}/></div>
         {([['name','Name'],['age','Age'],['occupation','Occupation'],['from',"Where they're from"]] as const).map(([k,l])=><div className="field" key={k}><label>{l}</label><input value={a[k]} onChange={e=>setA({...a,[k]:e.target.value})} disabled={busy}/></div>)}
+      </div>
+      <div className="notice"><b>Clues</b> — these are shown to players only when they request help. A clue counts against their daily tie-breaker.</div>
+      <div className="questions">
+        {([['name','Name clue'],['age','Age clue'],['occupation','Occupation clue'],['from',"Where they're from clue"]] as const).map(([k,l])=><div className="field" key={k}><label>{l}</label><textarea value={clues[k]} onChange={e=>setClues({...clues,[k]:e.target.value})} placeholder="e.g. Their first name starts with J…" maxLength={240} rows={2} disabled={busy}/></div>)}
       </div>
       <div className="questions">
         <div className="field"><label>Difficulty</label><select value={difficulty} onChange={e=>setDifficulty(e.target.value)} disabled={busy}><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select></div>

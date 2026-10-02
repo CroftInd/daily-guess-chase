@@ -1,8 +1,11 @@
 -- Daily Guess: engagement, profiles, stats, achievements and challenge analytics
 alter table public.challenges add column if not exists difficulty text not null default 'medium' check (difficulty in ('easy','medium','hard'));
+alter table public.challenges add column if not exists clues jsonb not null default '{}'::jsonb;
 
 alter table public.submissions add column if not exists answers jsonb not null default '{}'::jsonb;
 alter table public.submissions add column if not exists confidence jsonb not null default '{}'::jsonb;
+alter table public.submissions add column if not exists clue_usage jsonb not null default '{}'::jsonb;
+alter table public.submissions add column if not exists clue_count smallint not null default 0 check(clue_count between 0 and 4);
 alter table public.submissions add column if not exists elapsed_seconds integer not null default 0 check(elapsed_seconds >= 0);
 
 create index if not exists submissions_display_name_idx on public.submissions(lower(trim(display_name)));
@@ -11,7 +14,7 @@ create index if not exists submissions_challenge_idx on public.submissions(chall
 -- Keep the existing daily-draw function, but make selection prefer challenges not used recently.
 drop function if exists public.get_or_create_daily_challenges(date);
 create or replace function public.get_or_create_daily_challenges(p_date date)
-returns table(slot smallint, challenge_id uuid, title text, video_path text, poster_path text, difficulty text)
+returns table(slot smallint, challenge_id uuid, title text, video_path text, poster_path text, difficulty text, clues jsonb)
 language plpgsql security definer set search_path = public
 as $$
 declare
@@ -54,7 +57,7 @@ begin
   end if;
 
   return query
-  select d.slot, c.id, c.title, c.video_path, c.poster_path, c.difficulty
+  select d.slot, c.id, c.title, c.video_path, c.poster_path, c.difficulty, c.clues
   from public.daily_challenges d
   join public.challenges c on c.id = d.challenge_id
   where d.challenge_date = p_date
@@ -83,10 +86,10 @@ left join (select challenge_id,coalesce(sum(score),0)::int as total_points,count
 drop policy if exists "published challenge metadata" on public.challenges;
 
 create or replace function public.get_public_daily_challenges(p_date date)
-returns table(slot smallint, challenge_id uuid, title text, poster_path text, difficulty text)
+returns table(slot smallint, challenge_id uuid, title text, poster_path text, difficulty text, clues jsonb)
 language sql security definer set search_path = public
 as $$
-  select d.slot, c.id, c.title, c.poster_path, c.difficulty
+  select d.slot, c.id, c.title, c.poster_path, c.difficulty, c.clues
   from public.daily_challenges d
   join public.challenges c on c.id=d.challenge_id
   where d.challenge_date=p_date and c.is_published=true

@@ -39,6 +39,7 @@ export async function POST(req: Request) {
     const occupation = String(body.occupation || "").trim();
     const from = String(body.from || "").trim();
     const difficulty = ["easy","medium","hard"].includes(String(body.difficulty)) ? String(body.difficulty) : "medium";
+    const clues = { name:String(body.clues?.name||"").trim().slice(0,240), age:String(body.clues?.age||"").trim().slice(0,240), occupation:String(body.clues?.occupation||"").trim().slice(0,240), from:String(body.clues?.from||"").trim().slice(0,240) };
     const videoPath = String(body.videoPath || "").trim();
     const posterPath = body.posterPath ? String(body.posterPath).trim() : null;
 
@@ -62,6 +63,7 @@ export async function POST(req: Request) {
       occupation_answer: occupation,
       from_answer: from,
       difficulty,
+      clues,
       is_published: true,
       created_by: auth.user.id,
     }).select("id").single();
