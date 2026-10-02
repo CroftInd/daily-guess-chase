@@ -37,7 +37,7 @@ export default function Admin({ email }: { email: string }) {
 
   async function save(){
     if(busy)return;
-    if(Object.values(a).some(v=>!v.trim())||(!editing&&!video)){setMsg("Please provide the video and all four answers.");return;}
+    if(Object.values(a).some((v:string)=>!v.trim())||(!editing&&!video)){setMsg("Please provide the video and all four answers.");return;}
     setBusy(true);setMsg(editing?"Preparing update…":"Preparing upload…");
     try{
       if(editing){

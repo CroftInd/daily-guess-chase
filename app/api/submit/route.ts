@@ -30,18 +30,8 @@ export async function POST(req: Request) {
     // A player may answer the same archived challenge again on a later day.
     // The duplicate check is deliberately scoped to BOTH challenge and daily date,
     // so previous-day submissions never lock a repeated challenge.
-const safePlayerPattern = player
-  .replace(/\\/g, "\\\\")
-  .replace(/%/g, "\\%")
-  .replace(/_/g, "\\_");    
-const { data: existing } = await db
-  .from("submissions")
-  .select("id,score,answers,confidence,elapsed_seconds")
-  .eq("challenge_id", challengeId)
-  .eq("challenge_date", date)
-  .ilike("display_name", safePlayerPattern)
-  .maybeSingle();
-      if (existing) {
+    const safePlayerPattern = player.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+const { data: existing } = await db.from("submissions").select("id,score,answers,confidence,elapsed_seconds").eq("challenge_id", challengeId).eq("challenge_date", date).ilike("display_name", safePlayerPattern).maybeSingle();    if (existing) {
       const existingBreakdown = ["name","age","occupation","from"].map((k) => {
         const a = existing.answers?.[k] || {};
         const correctAnswer = String((c as any)[`${k}_answer`]);
