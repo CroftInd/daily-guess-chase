@@ -7,6 +7,7 @@ Next.js App Router + TypeScript + Supabase Postgres/Auth/Storage + Vercel.
 2. Run `supabase/schema.sql` for a fresh database, or run all applicable migrations if upgrading an existing Daily Guess installation.
 3. For the current archive version, run `migration-random-archive.sql` and `migration-fix-daily-draw.sql` if they have not already been run.
 4. Run `migration-all-features.sql` for the features in this release.
+5. Run `migration-qa-hardening.sql` after the above migrations. This repairs partial daily draws safely and hardens repeat-submission handling. It is safe to run on an existing installation.
 5. Create an admin email/password user in Supabase Authentication > Users.
 6. Copy `.env.example` to `.env.local` and fill the Supabase URL, publishable key, service-role key and `ADMIN_EMAILS`.
 7. `npm install` then `npm run dev`.

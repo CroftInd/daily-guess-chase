@@ -30,13 +30,29 @@ export async function POST(req: Request) {
     // A player may answer the same archived challenge again on a later day.
     // The duplicate check is deliberately scoped to BOTH challenge and daily date,
     // so previous-day submissions never lock a repeated challenge.
-    const { data: existing } = await db.from("submissions").select("id,score").eq("challenge_id", challengeId).eq("challenge_date", date).ilike("display_name", player).maybeSingle();
-    if (existing) {
-      return NextResponse.json({ error: "This challenge has already been submitted for this leaderboard name." }, { status: 409 });
+const safePlayerPattern = player
+  .replace(/\\/g, "\\\\")
+  .replace(/%/g, "\\%")
+  .replace(/_/g, "\\_");    
+const { data: existing } = await db
+  .from("submissions")
+  .select("id,score,answers,confidence,elapsed_seconds")
+  .eq("challenge_id", challengeId)
+  .eq("challenge_date", date)
+  .ilike("display_name", safePlayerPattern)
+  .maybeSingle();
+      if (existing) {
+      const existingBreakdown = ["name","age","occupation","from"].map((k) => {
+        const a = existing.answers?.[k] || {};
+        const correctAnswer = String((c as any)[`${k}_answer`]);
+        return { key:k, label:labels[k], guess:String(a.guess ?? ""), correctAnswer, correct:Boolean(a.correct), confidence:String(existing.confidence?.[k] || "") };
+      });
+      return NextResponse.json({ score:Number(existing.score)||0, breakdown:existingBreakdown, alreadySubmitted:true });
     }
 
+    const safeElapsed = Math.min(86400, Math.max(1, Math.round(Number(elapsedSeconds)||0)));
     const storedAnswers=Object.fromEntries(breakdown.map(x=>[x.key,{guess:x.guess,correct:x.correct}]));
-    const { error: se } = await db.from("submissions").insert({ challenge_id: challengeId, challenge_date: date, display_name: player, score, answers:storedAnswers, confidence: confidence || {}, elapsed_seconds: Math.max(0, Math.round(Number(elapsedSeconds)||0)) });
+    const { error: se } = await db.from("submissions").insert({ challenge_id: challengeId, challenge_date: date, display_name: player, score, answers:storedAnswers, confidence: confidence || {}, elapsed_seconds: safeElapsed });
     if (se) {
       console.error("Submission insert failed:", se);
       return NextResponse.json({ error: "Your score could not be saved. Please try again." }, { status: 500 });
