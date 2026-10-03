@@ -12,9 +12,19 @@ const labels: Record<string, string> = {
 export async function POST(req: Request) {
   try {
     const b = await req.json();
-    const { challengeId, date, answers, displayName, clueUsage, elapsedSeconds } = b;
 
-    const player = String(displayName || "").trim().slice(0, 40);
+    const {
+      challengeId,
+      date,
+      answers,
+      displayName,
+      clueUsage,
+      elapsedSeconds,
+    } = b;
+
+    const player = String(displayName || "")
+      .trim()
+      .slice(0, 40);
 
     if (
       !challengeId ||
@@ -26,7 +36,9 @@ export async function POST(req: Request) {
       !answers?.from
     ) {
       return NextResponse.json(
-        { error: "Player name and all four answers are required." },
+        {
+          error: "Player name and all four answers are required.",
+        },
         { status: 400 }
       );
     }
@@ -74,7 +86,9 @@ export async function POST(req: Request) {
         String((c as any)[`${k}_answer`])
       );
 
-      if (correct) score++;
+      if (correct) {
+        score++;
+      }
 
       return {
         key: k,
@@ -95,7 +109,7 @@ export async function POST(req: Request) {
     const { data: existing } = await db
       .from("submissions")
       .select(
-        "id,score,answers,confidence,elapsed_seconds,clue_count"
+        "id,score,answers,clue_usage,clue_count,elapsed_seconds"
       )
       .eq("challenge_id", challengeId)
       .eq("challenge_date", date)
@@ -107,7 +121,9 @@ export async function POST(req: Request) {
         ["name", "age", "occupation", "from"] as const
       ).map((k) => {
         const a = existing.answers?.[k] || {};
-        const correctAnswer = String((c as any)[`${k}_answer`]);
+        const correctAnswer = String(
+          (c as any)[`${k}_answer`]
+        );
 
         return {
           key: k,
@@ -144,7 +160,12 @@ export async function POST(req: Request) {
     const availableClues = (c as any).clues || {};
 
     const cleanClues = Object.fromEntries(
-      (Object.entries(clueUsage || {}) as [string, unknown][])
+      (
+        Object.entries(clueUsage || {}) as [
+          string,
+          unknown
+        ][]
+      )
         .filter(
           ([k, v]) =>
             ["name", "age", "occupation", "from"].includes(k) &&
@@ -154,18 +175,21 @@ export async function POST(req: Request) {
         .map(([k]) => [k, true])
     );
 
-    const clueCount = Object.values(cleanClues).filter(Boolean).length;
+    const clueCount =
+      Object.values(cleanClues).filter(Boolean).length;
 
-    const { error: se } = await db.from("submissions").insert({
-      challenge_id: challengeId,
-      challenge_date: date,
-      display_name: player,
-      score,
-      answers: storedAnswers,
-      clue_usage: cleanClues,
-      clue_count: clueCount,
-      elapsed_seconds: safeElapsed,
-    });
+    const { error: se } = await db
+      .from("submissions")
+      .insert({
+        challenge_id: challengeId,
+        challenge_date: date,
+        display_name: player,
+        score,
+        answers: storedAnswers,
+        clue_usage: cleanClues,
+        clue_count: clueCount,
+        elapsed_seconds: safeElapsed,
+      });
 
     if (se) {
       console.error("Submission insert failed:", se);
